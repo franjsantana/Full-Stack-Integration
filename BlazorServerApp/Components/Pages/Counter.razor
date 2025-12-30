@@ -1,0 +1,35 @@
+﻿@page "/counter"
+@rendermode InteractiveServer
+@inject Blazored.SessionStorage.ISessionStorageService SessionStorageService;
+
+<h1>Counter</h1>
+
+<p>Current count: @CounterInc</p>
+<button @onclick="IncrementCount">Click me</button>
+
+@code {
+    private int CounterInc;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) //firstRender is true only the first time the
+                                                                       //component is rendered
+    {
+        if (firstRender)
+        {
+            CounterInc = await SessionStorageService.GetItemAsync<int>("Counter");
+        }
+    }
+
+    private async Task IncrementCount()
+    {
+        CounterInc++;
+        await SessionStorageService.SetItemAsync("Counter", CounterInc);
+    }
+}
+
+@*
+Extend the session management to include persistent data handling in a user-friendly way:
+1. Install the Blazored.SessionStorage NuGet package to simplify session storage: dotnet add package
+Blazored.SessionStorage
+2. Update Program.cs to include the session storage service in the dependency injection container.
+3. Create or update a Blazor component (e.g., Counter.razor) to store and retrieve data from session storage.
+*@

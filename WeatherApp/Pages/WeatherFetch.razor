@@ -1,0 +1,60 @@
+@page "/weatherFetch"
+@inject HttpClient Http
+
+<h3>Weather Information</h3>
+
+@if (weather is not null)
+{
+    <div>
+        <h4>@weather.location.name, @weather.location.country</h4>
+        <p>Temperature: @weather.current.temp_c°C</p>
+        <p>Condition: @weather.current.condition.text</p>
+        <img src="https:@weather.current.condition.icon" alt="Weather Condition" />
+    </div>
+}
+@if (weather is null)
+{
+    <p><em>Unable to fetch weather data. Please try again later.</em></p>
+}
+
+@code {
+    private WeatherData? weather; // Puede ser nulo
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            weather = await
+            Http.GetFromJsonAsync<WeatherData>("https://api.weatherapi.com/v1/current.json?key=ff8a53106d3e48f6bc6105901251612&q=London");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching weather data: {ex.Message}");
+        }
+    }
+
+    public class WeatherData
+    {
+        public required Location location { get; set; }
+        public required Current current { get; set; }
+    }
+
+    public class Location
+    {
+        public required string name { get; set; }
+        public required string country { get; set; }
+    }
+
+    public class Current
+    {
+        public required double temp_c { get; set; }
+        public required Condition condition { get; set; }
+    }
+
+    public class Condition
+    {
+        public required string text { get; set; }
+        public required string icon { get; set; }
+    }
+}
+

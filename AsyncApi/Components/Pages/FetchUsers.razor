@@ -1,0 +1,77 @@
+@page "/fetchusers"
+@inject HttpClient Http
+@rendermode InteractiveServer
+
+@using AsyncApi.Components.Models
+
+<h3>Users</h3>
+<button @onclick="LoadUsers">New Users</button>
+
+@if (isLoading)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <p class="text-danger">@errorMessage</p>
+}
+else if (users != null)
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>City</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in users)
+            {
+                <tr>
+                    <td>@user.Name</td>
+                    <td>@user.Email</td>
+                    <td>@user.Address?.City</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>No data available.</p>
+}
+
+@code {
+    private List<User>? users;
+    private string? errorMessage = null;
+    private bool isLoading = true;
+
+    private async Task LoadUsers()
+    {
+        try
+        {
+            isLoading = true;
+            // Simulate a small delay to see the loading state
+            await Task.Delay(2000);
+            users = await Http.GetFromJsonAsync<List<User>>("https://jsonplaceholder.typicode.com/users");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error fetching data: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
+
+
+
+
+
+
+
+

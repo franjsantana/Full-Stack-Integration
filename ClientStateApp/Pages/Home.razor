@@ -1,0 +1,34 @@
+﻿@page "/"
+<h3>Theme Selector</h3>
+<button @onclick="ToggleTheme">Toggle Theme</button>
+<button @onclick="ClearStorage">Clear All Storage</button>
+<p>Current Theme: @theme</p>
+
+@inject Blazored.LocalStorage.ILocalStorageService localStorage
+@inject Blazored.SessionStorage.ISessionStorageService sessionStorage
+
+@code {
+    private string theme = "light";
+    private async Task ToggleTheme()
+    {
+        theme = theme == "light" ? "dark" : "light"; // Invierte el valor de la variable theme
+        await localStorage.SetItemAsync("user-theme", theme); // Guarda el nuevo valor en el almacenamiento
+    }
+    protected override async Task OnInitializedAsync() // This method is called when the component is initialized
+    {
+        theme = await localStorage.GetItemAsync<string>("keyTheme") ?? "light"; // ?? "light" is the default value
+    }
+    private async Task ClearStorage() // This method clears all storage
+    {
+        await localStorage.ClearAsync();
+        await sessionStorage.ClearAsync();
+    }
+    /*
+    Resumen del Flujo
+    1. Carga el Componente -> OnInitializedAsync consulta el almacenamiento -> Actualiza la variable theme.
+    2. Usuario Clickea Botón -> ToggleTheme invierte la variable theme -> Guarda el nuevo valor en el almacenamiento.
+    3. Usuario Refresca -> El Paso 1 se repite, pero esta vez encuentra el valor guardado en el Paso 2.
+    */
+}
+
+

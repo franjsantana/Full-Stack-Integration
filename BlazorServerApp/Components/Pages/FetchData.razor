@@ -1,0 +1,24 @@
+@page "/fetch"
+@inject CacheService CacheService;
+
+<h3>Weather Data</h3>
+
+<p>@WeatherData</p>
+
+@code {
+    private string WeatherData = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        WeatherData = CacheService.GetOrCreate("weatherData",
+        () => "Sample weather data", // En una aplicación real, reemplazarías esa línea por una llamada real a una base de datos
+                                     // o API externa
+        TimeSpan.FromMinutes(5));
+    }
+}
+
+@*
+Implement a Blazor component that uses the caching service to fetch and display data:
+- Inject the caching service into the component.
+- Add logic to fetch weather data and store it in the cache for 5 minutes.
+*@

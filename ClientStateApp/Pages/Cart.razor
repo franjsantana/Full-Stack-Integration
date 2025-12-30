@@ -1,0 +1,36 @@
+@page "/cart"
+<h3>Shopping Cart</h3>
+<input @bind="newItem" placeholder="Add item" />
+<button @onclick="AddItem">Add</button>
+<ul>
+    @foreach (var item in cartItems)
+    {
+        <li>@item</li>
+    }
+</ul>
+
+@inject Blazored.SessionStorage.ISessionStorageService SessionStorage
+
+@code {
+    private string newItem = string.Empty;
+    private List<string> cartItems = new();
+
+    private async Task AddItem()
+    {
+        cartItems.Add(newItem);
+        await SessionStorage.SetItemAsync("keyCompras", cartItems);
+        newItem = string.Empty;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        cartItems = await SessionStorage.GetItemAsync<List<string>>("keyCompras") ?? new List<string>();
+    }
+    /*
+    Resumen del Flujo:
+    1. Al entrar: OnInitializedAsync busca si hay un carrito guardado en el navegador y lo carga en cartItems.
+    2. Al escribir: newItem se actualiza en tiempo real.
+    3. Al dar click en Add: Se añade a la lista local, se guarda la nueva lista en el navegador (sobrescribiendo la vieja),
+    y se limpia el input.
+    */
+}

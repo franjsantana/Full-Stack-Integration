@@ -1,0 +1,69 @@
+@inject HttpClient Http
+
+@page "/products"
+
+<h3>Products</h3>
+
+@if (products == null)
+{
+    @* Si products es null, significa que aún no se han cargado los datos *@
+    <p><em>Loading...</em></p>
+}
+else
+{
+    @* Si products ya tiene datos, los mostramos en una lista *@
+    <ul>
+        @* Itera sobre cada producto en el array *@
+        @foreach (var product in products)
+        {
+            @* Muestra el nombre de cada producto en un elemento de lista *@
+            <li>@product.Name</li>
+        }
+    </ul>
+}
+
+@* ========================================
+SECCIÓN C# - LÓGICA DEL COMPONENTE
+======================================== *@
+@code {
+    private Product[]? products;
+
+    // ========================================
+    // MÉTODOS DEL CICLO DE VIDA
+    // ========================================
+    /// <summary>
+    /// OnInitializedAsync se ejecuta cuando el componente se inicializa
+    /// Es el lugar ideal para cargar datos desde APIs
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        // Hace una petición HTTP GET al backend
+        // GetFromJsonAsync<T>:
+        // 1. Hace la petición HTTP GET
+        // 2. Lee la respuesta JSON
+        // 3. Deserializa el JSON a un array de Product
+        // 4. Asigna el resultado a la variable products
+        //
+        // ⚠️ IMPORTANTE: La URL debe coincidir con el puerto donde corre el backend
+        // Si el backend corre en otro puerto, actualiza esta URL
+        products = await Http.GetFromJsonAsync<Product[]>("http://localhost:5074/products");
+
+        // Cuando products cambia de null a un array con datos,
+        // Blazor automáticamente re-renderiza el componente
+        // y muestra la lista de productos en lugar de "Loading..."
+    }
+
+    // ========================================
+    // MODELOS DE DATOS
+    // ========================================
+    /// <summary>
+    /// Clase que representa un producto
+    /// Debe coincidir con la estructura JSON que devuelve el backend
+    /// </summary>
+    public class Product
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+}
+
