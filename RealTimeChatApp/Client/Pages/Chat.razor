@@ -1,0 +1,62 @@
+@page "/chat"
+@using Shared.Models
+@inject ChatService ChatService
+
+<h3>Chat</h3>
+<input @bind="user" placeholder="Your name" />
+<input @bind="message" placeholder="Your message" />
+<button @onclick="SendMessage">Send</button>
+
+<ul>
+    @foreach (var chat in chats)
+    {
+        <li><strong>@chat.User</strong>: @chat.Message (@chat.TimeStamp)</li>
+    }
+</ul>
+
+@code {
+    // Variables para almacenar el estado del formulario y la lista de mensajes
+    private string user = string.Empty;
+    private string message = string.Empty;
+    private List<ChatMessage> chats = new();
+
+    /// <summary>
+    /// Método de ciclo de vida que se ejecuta al iniciar el componente.
+    /// Configura el listener para recibir mensajes y conecta al servicio.
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        // Suscribirse al evento de recepción de mensajes
+        ChatService.OnMessageReceived += (chat) =>
+        {
+            chats.Add(chat);
+            // Notificar a Blazor que el estado ha cambiado para actualizar la UI
+            InvokeAsync(StateHasChanged);
+        };
+
+        // Iniciar la conexión con el Hub de SignalR
+        await ChatService.StartAsync();
+    }
+
+    /// <summary>
+    /// Envía el mensaje actual al servidor si los campos son válidos.
+    /// </summary>
+    private async Task SendMessage()
+    {
+        if (!string.IsNullOrWhiteSpace(user) && !string.IsNullOrWhiteSpace(message))
+        {
+            var chatMessage = new ChatMessage
+                {
+                    User = user,
+                    Message = message,
+                    TimeStamp = DateTime.Now
+                };
+
+            // Enviar mensaje al Hub
+            await ChatService.SendMessage(chatMessage);
+
+            // Limpiar el campo de mensaje después de enviar
+            message = string.Empty;
+        }
+    }
+}
