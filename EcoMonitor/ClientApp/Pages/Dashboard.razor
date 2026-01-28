@@ -1,0 +1,404 @@
+@page "/dashboard"
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
+@inject HttpClient Http
+@inject StateService State
+@inject NavigationManager Navigation
+
+<div class="dashboard-container">
+    <header class="dashboard-header animate__animated animate__fadeInDown">
+        <h1>EcoMonitor <small>Dashboard en Tiempo Real</small></h1>
+        <div class="header-actions">
+            <span class="status-badge @(hubConnection?.State == HubConnectionState.Connected ? "online" : "offline")">
+                @(hubConnection?.State == HubConnectionState.Connected ? "Conectado" : "Desconectado")
+            </span>
+        </div>
+    </header>
+
+    @if (alerts.Any())
+    {
+        <div class="alerts-section">
+            @foreach (var alert in alerts.OrderByDescending(a => a.Timestamp).Take(3))
+            {
+                <div class="alert-card @alert.Severity.ToLower() animate__animated animate__shakeX">
+                    <span class="alert-icon">⚠️</span>
+                    <div class="alert-content">
+                        <strong>@alert.Message</strong>
+                        <small>@alert.Timestamp.ToLocalTime().ToString("T")</small>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="metrics-grid">
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert-card critical w-100">
+                <strong>Error de Conexión:</strong> @errorMessage
+                <br />
+                <small>Verifica que ServerApp esté corriendo y que el certificado SSL sea aceptado.</small>
+            </div>
+        }
+        else if (devices == null)
+        {
+            <div class="loader">Cargando dispositivos...</div>
+        }
+        else
+        {
+            @foreach (var device in devices)
+            {
+                var reading = lastReadings.GetValueOrDefault(device.Id);
+                var isFav = State.IsFavorite(device.Id);
+
+                <div
+                    class="device-card @(device.IsActive ? "active" : "inactive") @(isFav ? "favorite" : "") animate__animated animate__fadeInUp">
+                    <div class="device-header">
+                        <div class="device-info">
+                            <h3>@device.Name</h3>
+                            <span>@device.Location • @device.Type</span>
+                        </div>
+                        <button class="fav-btn" @onclick="() => ToggleFavorite(device.Id)">
+                            @(isFav ? "★" : "☆")
+                        </button>
+                    </div>
+
+                    <div class="device-body">
+                        @if (reading != null)
+                        {
+                            <div class="metric primary">
+                                <span class="value @(IsPulsing(device.Id) ? "pulse" : "")">@reading.Watts.ToString("N0")</span>
+                                <span class="unit">Watts</span>
+                            </div>
+                            <div class="metric-sub row">
+                                <div class="col">
+                                    <span class="label">Amps</span>
+                                    <span class="sub-value">@reading.Amps.ToString("N2")</span>
+                                </div>
+                                <div class="col">
+                                    <span class="label">Cost/h</span>
+                                    <span class="sub-value">$@reading.EstimatedCost.ToString("N3")</span>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="no-data">Esperando datos...</div>
+                        }
+                    </div>
+
+                    <div class="device-footer">
+                        <span class="last-seen">
+                            @(reading != null ? $"Última actualización: {reading.Timestamp.ToLocalTime():T}" :
+                                "Sincronizando...")
+                        </span>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<style>
+    .dashboard-container {
+        padding: 2rem;
+        background: #f8fafc;
+        min-height: 100vh;
+        font-family: 'Inter', system-ui, sans-serif;
+    }
+
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 1rem;
+    }
+
+    .dashboard-header h1 {
+        font-weight: 800;
+        color: #1e293b;
+        margin: 0;
+    }
+
+    .dashboard-header small {
+        display: block;
+        font-size: 1rem;
+        color: #64748b;
+        font-weight: 400;
+    }
+
+    .status-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .status-badge.online {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .status-badge.online::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        background: #22c55e;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .status-badge.offline {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .alerts-section {
+        margin-bottom: 2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .alert-card {
+        padding: 1rem;
+        border-radius: 12px;
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        border-left: 4px solid;
+    }
+
+    .alert-card.critical {
+        background: #fef2f2;
+        border-color: #ef4444;
+        color: #991b1b;
+    }
+
+    .alert-card.warning {
+        background: #fffbeb;
+        border-color: #f59e0b;
+        color: #92400e;
+    }
+
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .device-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        transition: transform 0.2s, box-shadow 0.2s;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .device-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+    }
+
+    .device-card.favorite {
+        border: 2px solid #3b82f6;
+    }
+
+    .device-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+    }
+
+    .device-info h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        color: #1e293b;
+    }
+
+    .device-info span {
+        font-size: 0.875rem;
+        color: #64748b;
+    }
+
+    .fav-btn {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #94a3b8;
+        transition: color 0.2s;
+    }
+
+    .device-card.favorite .fav-btn {
+        color: #f59e0b;
+    }
+
+    .device-body {
+        text-align: center;
+        padding: 1rem 0;
+    }
+
+    .metric.primary {
+        margin-bottom: 1rem;
+    }
+
+    .metric.primary .value {
+        font-size: 3rem;
+        font-weight: 800;
+        color: #0f172a;
+        line-height: 1;
+        transition: all 0.3s ease;
+    }
+
+    .pulse {
+        animation: pulse-animation 0.5s ease-out;
+    }
+
+    @@keyframes pulse-animation {
+        0% {
+            transform: scale(1);
+            color: #3b82f6;
+        }
+
+        50% {
+            transform: scale(1.05);
+            color: #2563eb;
+        }
+
+        100% {
+            transform: scale(1);
+            color: #0f172a;
+        }
+    }
+
+    .metric.primary .unit {
+        font-size: 1rem;
+        color: #64748b;
+        margin-left: 0.5rem;
+    }
+
+    .metric-sub {
+        display: flex;
+        justify-content: space-around;
+        background: #f1f5f9;
+        padding: 1rem;
+        border-radius: 12px;
+    }
+
+    .metric-sub .label {
+        display: block;
+        font-size: 0.75rem;
+        color: #64748b;
+        text-transform: uppercase;
+    }
+
+    .metric-sub .sub-value {
+        font-weight: 700;
+        color: #1e293b;
+    }
+
+    .device-footer {
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid #f1f5f9;
+        font-size: 0.75rem;
+        color: #94a3b8;
+    }
+
+    .loader {
+        padding: 3rem;
+        text-align: center;
+        color: #64748b;
+    }
+</style>
+
+@code {
+    /// <summary> Lista de dispositivos cargada desde la API. </summary>
+    private List<DeviceDto>? devices;
+
+    /// <summary> Almacena la última lectura recibida por cada dispositivo (ID => Lectura). </summary>
+    private Dictionary<int, EnergyReadingDto> lastReadings = new();
+
+    /// <summary> Lista de alertas recientes recibidas vía SignalR. </summary>
+    private List<AlertDto> alerts = new();
+
+    /// <summary> Conexión activa al Hub de SignalR. </summary>
+    private HubConnection? hubConnection;
+
+    /// <summary> Mensaje de error en caso de fallo de conexión. </summary>
+    private string? errorMessage;
+
+    /// <summary> Conjunto de IDs de dispositivos que están actualmente animándose. </summary>
+    private HashSet<int> pulsingDevices = new();
+
+    /// <summary> Verifica si un dispositivo debe mostrar la animación de pulso. </summary>
+    private bool IsPulsing(int deviceId) => pulsingDevices.Contains(deviceId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. Inicializar Estado (Favoritos)
+        await State.InitializeAsync();
+        State.OnChange += StateHasChanged;
+
+        // 2. Cargar lista base de dispositivos
+        try
+        {
+            devices = await Http.GetFromJsonAsync<List<DeviceDto>>("api/devices");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            Console.WriteLine($"Error cargando dispositivos: {ex.Message}");
+        }
+
+        // 3. Configurar SignalR
+        hubConnection = new HubConnectionBuilder()
+        .WithUrl(Navigation.ToAbsoluteUri("http://localhost:5011/hubs/notifications"))
+        .WithAutomaticReconnect()
+        .Build();
+
+        hubConnection.On<EnergyReadingDto>("ReceiveTelemetry", async (reading) =>
+        {
+            lastReadings[reading.DeviceId] = reading;
+
+            // Trigger pulse animation
+            pulsingDevices.Add(reading.DeviceId);
+            await InvokeAsync(StateHasChanged);
+
+            await Task.Delay(500);
+            pulsingDevices.Remove(reading.DeviceId);
+            await InvokeAsync(StateHasChanged);
+        });
+
+        hubConnection.On<AlertDto>("ReceiveAlert", (alert) =>
+        {
+            alerts.Add(alert);
+            if (alerts.Count > 10) alerts.RemoveAt(0);
+            InvokeAsync(StateHasChanged);
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    private async Task ToggleFavorite(int deviceId)
+    {
+        await State.ToggleFavoriteAsync(deviceId);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        State.OnChange -= StateHasChanged;
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+}
